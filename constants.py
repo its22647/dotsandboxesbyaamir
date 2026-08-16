@@ -1,18 +1,17 @@
-import ctypes
 import os
 import pygame
 
-# Enable Native OS DPI Awareness
-try:
-    if os.name == 'nt':
-        ctypes.windll.shcore.SetProcessDpiAwareness(2)
-except Exception:
-    pass
-
+# Initialize Pygame First
 pygame.init()
 
-DEFAULT_WIDTH = 1240
-DEFAULT_HEIGHT = 820
+# Auto-Detect User's Monitor Screen Resolution
+info = pygame.display.Info()
+screen_res_w = info.current_w if info.current_w > 0 else 1366
+screen_res_h = info.current_h if info.current_h > 0 else 768
+
+# Set Safe Proportional Window Size (Ensures no screen overflow on 1366x768 / 720p laptops)
+DEFAULT_WIDTH = max(800, min(1180, int(screen_res_w * 0.86)))
+DEFAULT_HEIGHT = max(560, min(740, int(screen_res_h * 0.84)))
 
 DEVELOPER_NAME = "Muhammad Aamir Bakhsh"
 APP_TITLE = "DOTS & BOXES"
@@ -75,7 +74,6 @@ THEMES = {
     }
 }
 
-# 8 Exclusive Player Neon Palettes
 AVAILABLE_COLORS = [
     {"name": "Crimson", "rgb": (255, 51, 102)},
     {"name": "Electric Cyan", "rgb": (0, 210, 255)},
@@ -87,12 +85,11 @@ AVAILABLE_COLORS = [
     {"name": "Lime Acid", "rgb": (195, 255, 0)}
 ]
 
-# High-Performance Font Cache
 FONT_CACHE = {}
 
 def get_scaled_font(size, bold=False):
     font_name = "Segoe UI" if os.name == 'nt' else "Helvetica Neue"
-    key = (font_name, max(10, int(size)), bold)
+    key = (font_name, max(9, int(size)), bold)
     if key not in FONT_CACHE:
         FONT_CACHE[key] = pygame.font.SysFont(font_name, key[1], bold=bold)
     return FONT_CACHE[key]

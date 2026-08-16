@@ -7,7 +7,6 @@ class GameBoard:
         self.num_players = num_players
         self.player_colors = player_color_indices
         
-        # Grid line matrices (None = unclaimed, int = player index)
         self.h_lines = [[None for _ in range(grid_size)] for _ in range(self.dot_count)]
         self.v_lines = [[None for _ in range(self.dot_count)] for _ in range(grid_size)]
         self.boxes = [[None for _ in range(grid_size)] for _ in range(grid_size)]
@@ -17,21 +16,29 @@ class GameBoard:
         self.total_boxes = grid_size * grid_size
 
     def get_layout_geometry(self, screen_w, screen_h):
-        top_offset = int(screen_h * 0.10)
-        bottom_reserved = int(screen_h * 0.17)
-        available_h = screen_h - top_offset - bottom_reserved
-        available_w = screen_w - int(screen_w * 0.08)
+        # Strict dynamic zones guaranteed never to overflow any screen
+        top_bar_h = max(38, int(screen_h * 0.075))
+        top_offset = top_bar_h + max(12, int(screen_h * 0.025))
 
-        board_px = max(260, min(available_w, available_h, int(screen_h * 0.70)))
-        cell_size = board_px // self.grid_size
+        bottom_bar_h = max(60, int(screen_h * 0.13))
+        bottom_offset = bottom_bar_h + max(16, int(screen_h * 0.035))
+
+        available_h = max(140, screen_h - top_offset - bottom_offset)
+        available_w = max(140, screen_w - int(screen_w * 0.12))
+
+        board_px = min(available_w, available_h)
+        cell_size = max(18, board_px // self.grid_size)
         
-        offset_x = (screen_w - (self.grid_size * cell_size)) // 2
-        offset_y = top_offset + (available_h - (self.grid_size * cell_size)) // 2
+        actual_board_w = self.grid_size * cell_size
+        actual_board_h = self.grid_size * cell_size
+
+        offset_x = (screen_w - actual_board_w) // 2
+        offset_y = top_offset + (available_h - actual_board_h) // 2
         return offset_x, offset_y, cell_size
 
     def get_dot_at_pos(self, mx, my, screen_w, screen_h):
         ox, oy, cs = self.get_layout_geometry(screen_w, screen_h)
-        tolerance = max(18, cs // 3)
+        tolerance = max(15, int(cs * 0.35))
         for r in range(self.dot_count):
             for c in range(self.dot_count):
                 dx = ox + c * cs
@@ -50,14 +57,14 @@ class GameBoard:
         dr, dc = abs(r1 - r2), abs(c1 - c2)
 
         if (dr == 1 and dc == 0) or (dr == 0 and dc == 1):
-            if dr == 0:  # Horizontal Line
+            if dr == 0:
                 row = r1
                 col = min(c1, c2)
                 if self.h_lines[row][col] is None:
                     self.h_lines[row][col] = self.current_turn
                     self._handle_move()
                     return True
-            else:        # Vertical Line
+            else:
                 row = min(r1, r2)
                 col = c1
                 if self.v_lines[row][col] is None:
