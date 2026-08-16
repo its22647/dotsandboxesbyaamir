@@ -16,28 +16,40 @@ class GameBoard:
         self.total_boxes = grid_size * grid_size
 
     def get_layout_geometry(self, screen_w, screen_h):
-        # Strict dynamic zones guaranteed never to overflow any screen
-        top_bar_h = max(38, int(screen_h * 0.075))
-        top_offset = top_bar_h + max(12, int(screen_h * 0.025))
+        # 1. Top Bar Boundary
+        top_bar_h = max(36, int(screen_h * 0.065))
+        top_bar_y = max(8, int(screen_h * 0.015))
+        top_bar_bottom = top_bar_y + top_bar_h
 
-        bottom_bar_h = max(60, int(screen_h * 0.13))
-        bottom_offset = bottom_bar_h + max(16, int(screen_h * 0.035))
+        # 2. Bottom Scoreboard Boundary
+        sb_h = max(56, int(screen_h * 0.12))
+        sb_bottom_margin = max(8, int(screen_h * 0.015))
+        sb_top = screen_h - sb_h - sb_bottom_margin
 
-        available_h = max(140, screen_h - top_offset - bottom_offset)
-        available_w = max(140, screen_w - int(screen_w * 0.12))
+        # 3. Guaranteed Safe Clearance (No Overlap)
+        gap_y = max(12, int(screen_h * 0.022))
+        safe_top = top_bar_bottom + gap_y
+        safe_bottom = sb_top - gap_y
 
-        board_px = min(available_w, available_h)
-        cell_size = max(18, board_px // self.grid_size)
-        
-        actual_board_w = self.grid_size * cell_size
-        actual_board_h = self.grid_size * cell_size
+        available_h = max(140, safe_bottom - safe_top)
+        available_w = max(140, screen_w - max(40, int(screen_w * 0.10)))
 
-        offset_x = (screen_w - actual_board_w) // 2
-        offset_y = top_offset + (available_h - actual_board_h) // 2
-        return offset_x, offset_y, cell_size
+        # Card square dimension
+        card_size = min(available_w, available_h)
+        card_x = (screen_w - card_size) // 2
+        card_y = safe_top + (available_h - card_size) // 2
+
+        # Compute cell size and inner padding
+        cs = max(18, int(card_size / (self.grid_size + 0.85)))
+        padding = (card_size - (self.grid_size * cs)) // 2
+
+        ox = card_x + padding
+        oy = card_y + padding
+
+        return ox, oy, cs, card_x, card_y, card_size
 
     def get_dot_at_pos(self, mx, my, screen_w, screen_h):
-        ox, oy, cs = self.get_layout_geometry(screen_w, screen_h)
+        ox, oy, cs, _, _, _ = self.get_layout_geometry(screen_w, screen_h)
         tolerance = max(15, int(cs * 0.35))
         for r in range(self.dot_count):
             for c in range(self.dot_count):
@@ -48,7 +60,7 @@ class GameBoard:
         return None
 
     def get_dot_coords(self, r, c, screen_w, screen_h):
-        ox, oy, cs = self.get_layout_geometry(screen_w, screen_h)
+        ox, oy, cs, _, _, _ = self.get_layout_geometry(screen_w, screen_h)
         return (ox + c * cs, oy + r * cs)
 
     def connect_dots(self, dot1, dot2):

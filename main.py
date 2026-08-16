@@ -11,7 +11,6 @@ from board import GameBoard
 pygame.init()
 pygame.key.set_repeat(280, 30)
 
-# Resizable Window with dynamic auto-detected default resolution
 screen = pygame.display.set_mode((DEFAULT_WIDTH, DEFAULT_HEIGHT), pygame.RESIZABLE)
 pygame.display.set_caption(APP_TITLE)
 clock = pygame.time.Clock()
@@ -74,7 +73,6 @@ def draw_animated_background(w, h):
 
     screen.blit(bg_cache, (0, 0))
 
-    # Natural Slow Ambient Drift
     glow_surf = pygame.Surface((w, h), pygame.SRCALPHA)
     t = global_tick * 0.015
     acc = theme["accent"]
@@ -101,12 +99,10 @@ def draw_welcome_screen(w, h):
     pygame.draw.rect(screen, theme["panel"], hero_rect, border_radius=22)
     pygame.draw.rect(screen, theme["panel_border"], hero_rect, width=2, border_radius=22)
 
-    # Main Title
     title_font = get_scaled_font(hero_h * 0.13, bold=True)
     t_surf = title_font.render(APP_TITLE, True, theme["accent"])
     screen.blit(t_surf, (hero_rect.centerx - t_surf.get_width() // 2, hero_rect.top + int(hero_h * 0.12)))
 
-    # Animated Dev Badge
     anim_rgb = get_wave_rgb(global_tick)
     dev_font = get_scaled_font(hero_h * 0.052, bold=True)
     dev_txt = dev_font.render(f"Developed by {DEVELOPER_NAME}", True, anim_rgb)
@@ -116,7 +112,6 @@ def draw_welcome_screen(w, h):
     pygame.draw.rect(screen, anim_rgb, badge_rect, width=1, border_radius=14)
     screen.blit(dev_txt, (hero_rect.centerx - dev_txt.get_width() // 2, badge_rect.centery - dev_txt.get_height() // 2))
 
-    # Action Buttons
     btn_w = int(hero_w * 0.50)
     btn_h = int(hero_h * 0.13)
 
@@ -211,12 +206,12 @@ def draw_confirmation_dialog(w, h):
     btn_h = int(modal_h * 0.18)
 
     yes_btn = pygame.Rect(rect.left + 30, rect.bottom - btn_h - 18, btn_w, btn_h)
-    pygame.draw.rect(screen, (255, 51, 102), yes_btn, border_radius=8)
+    pygame.draw.rect(screen, (255, 51, 102), yes_btn, border_radius=10)
     yt = get_scaled_font(btn_h * 0.45, bold=True).render("Yes, Confirm", True, (255, 255, 255))
     screen.blit(yt, (yes_btn.centerx - yt.get_width()//2, yes_btn.centery - yt.get_height()//2))
 
     no_btn = pygame.Rect(rect.right - 30 - btn_w, rect.bottom - btn_h - 18, btn_w, btn_h)
-    pygame.draw.rect(screen, theme["panel_border"], no_btn, border_radius=8)
+    pygame.draw.rect(screen, theme["panel_border"], no_btn, border_radius=10)
     nt = get_scaled_font(btn_h * 0.45, bold=True).render("Cancel", True, (255, 255, 255))
     screen.blit(nt, (no_btn.centerx - nt.get_width()//2, no_btn.centery - nt.get_height()//2))
 
@@ -241,7 +236,7 @@ def draw_menu(w, h):
     abt_txt = get_scaled_font(abt_h * 0.45, bold=True).render("About", True, theme["text_main"])
     screen.blit(abt_txt, (abt_btn.centerx - abt_txt.get_width()//2, abt_btn.centery - abt_txt.get_height()//2))
 
-    # Responsive Dashboard Card
+    # Responsive Setup Card
     card_w = min(int(w * 0.94), 980)
     card_h = min(int(h * 0.82), 620)
     card = pygame.Rect((w - card_w)//2, int(h * 0.12), card_w, card_h)
@@ -344,9 +339,9 @@ def draw_menu(w, h):
 def draw_playing(w, h):
     draw_animated_background(w, h)
     theme = THEMES[selected_theme_key]
-    ox, oy, cs = board.get_layout_geometry(w, h)
+    ox, oy, cs, card_x, card_y, card_size = board.get_layout_geometry(w, h)
 
-    # Top Clean Bar
+    # Top Bar
     bar_h = max(36, int(h * 0.065))
     top_bar = pygame.Rect(int(w * 0.03), int(h * 0.015), w - int(w * 0.06), bar_h)
     pygame.draw.rect(screen, theme["panel"], top_bar, border_radius=12)
@@ -371,7 +366,15 @@ def draw_playing(w, h):
     rt = get_scaled_font(r_btn.height * 0.42, bold=True).render("🔄 Restart", True, (255, 255, 255))
     screen.blit(rt, (r_btn.centerx - rt.get_width()//2, r_btn.centery - rt.get_height()//2))
 
-    # Board Rendering
+    # --- SOLID BOARD CARD (Perfectly bounded between Top & Bottom bars) ---
+    board_card = pygame.Rect(card_x, card_y, card_size, card_size)
+    card_shadow = board_card.copy()
+    card_shadow.y += 4
+    pygame.draw.rect(screen, (5, 8, 15), card_shadow, border_radius=16)
+    pygame.draw.rect(screen, theme["panel_surface"], board_card, border_radius=16)
+    pygame.draw.rect(screen, theme["panel_border"], board_card, width=2, border_radius=16)
+
+    # Board Render Fills
     board_surf = pygame.Surface((w, h), pygame.SRCALPHA)
     for r in range(grid_size):
         for c in range(grid_size):
@@ -404,7 +407,7 @@ def draw_playing(w, h):
             if board.v_lines[r][c] is None:
                 pygame.draw.line(screen, theme["grid_idle"], (x1, y1), (x1, y2), max(2, cs//28))
 
-    # Placed Neon Lines
+    # Placed Connected Lines
     line_thickness = max(4, int(cs * 0.09))
     for r in range(board.dot_count):
         for c in range(grid_size):

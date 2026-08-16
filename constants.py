@@ -1,7 +1,6 @@
 import os
 import pygame
 
-# Initialize Pygame First
 pygame.init()
 
 # Auto-Detect User's Monitor Screen Resolution
@@ -9,7 +8,7 @@ info = pygame.display.Info()
 screen_res_w = info.current_w if info.current_w > 0 else 1366
 screen_res_h = info.current_h if info.current_h > 0 else 768
 
-# Set Safe Proportional Window Size (Ensures no screen overflow on 1366x768 / 720p laptops)
+# Safe Proportional Window Size
 DEFAULT_WIDTH = max(800, min(1180, int(screen_res_w * 0.86)))
 DEFAULT_HEIGHT = max(560, min(740, int(screen_res_h * 0.84)))
 
@@ -18,7 +17,7 @@ APP_TITLE = "DOTS & BOXES"
 APP_VERSION = "v1.0.0"
 APP_BUILD_TYPE = "Desktop Standalone Edition"
 
-# Premium Studio Color Schemes
+# Premium Dark Studio Themes
 THEMES = {
     "Cyber Slate": {
         "bg_top": (15, 23, 42),
