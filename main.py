@@ -16,7 +16,7 @@ screen = pygame.display.set_mode((DEFAULT_WIDTH, DEFAULT_HEIGHT), pygame.RESIZAB
 pygame.display.set_caption(APP_TITLE)
 clock = pygame.time.Clock()
 
-# Primary State Routing: 'WELCOME', 'MENU', 'PLAYING', 'GAMEOVER'
+# State Control
 current_state = "WELCOME"
 show_about = False
 confirm_modal = None  # None, 'RESTART', 'MENU'
@@ -28,11 +28,11 @@ available_grids = [3, 4, 5, 6, 7, 8]
 player_names = ["Player 1", "Player 2", "Player 3", "Player 4"]
 player_color_indices = [0, 1, 2, 3]
 
-# Text Interaction
+# Input Fields
 active_input_idx = None
 select_all = False
 
-# Board & Interaction State
+# Board & Drag State
 board = None
 drag_start_dot = None
 
@@ -41,7 +41,7 @@ global_tick = 0
 welcome_intro_timer = 0
 about_type_timer = 0
 
-# Fast Cached Background Canvas
+# Fast Cached Background Surface
 bg_cache = None
 bg_cache_size = (0, 0)
 bg_cache_theme = ""
@@ -80,21 +80,21 @@ def draw_animated_background(w, h):
 
     screen.blit(bg_cache, (0, 0))
 
-    # Ultra-Slow, Smooth Ambient Floating Glow (5x Slower)
+    # Balanced Natural Ambient Drift
     glow_surf = pygame.Surface((w, h), pygame.SRCALPHA)
-    t = global_tick * 0.003
+    t = global_tick * 0.015
     acc = theme["accent"]
     
-    orb1_x = int(w * 0.25 + math.sin(t * 0.4) * 80)
-    orb1_y = int(h * 0.35 + math.cos(t * 0.3) * 60)
-    orb2_x = int(w * 0.75 + math.cos(t * 0.35) * 90)
-    orb2_y = int(h * 0.65 + math.sin(t * 0.45) * 70)
-    orb3_x = int(w * 0.50 + math.sin(t * 0.25) * 70)
-    orb3_y = int(h * 0.85 + math.cos(t * 0.35) * 50)
+    orb1_x = int(w * 0.25 + math.sin(t * 0.5) * 90)
+    orb1_y = int(h * 0.35 + math.cos(t * 0.4) * 65)
+    orb2_x = int(w * 0.75 + math.cos(t * 0.45) * 100)
+    orb2_y = int(h * 0.65 + math.sin(t * 0.55) * 75)
+    orb3_x = int(w * 0.50 + math.sin(t * 0.35) * 80)
+    orb3_y = int(h * 0.85 + math.cos(t * 0.45) * 55)
 
-    pygame.draw.circle(glow_surf, (acc[0], acc[1], acc[2], 20), (orb1_x, orb1_y), int(min(w, h) * 0.34))
-    pygame.draw.circle(glow_surf, (acc[0], acc[1], acc[2], 16), (orb2_x, orb2_y), int(min(w, h) * 0.40))
-    pygame.draw.circle(glow_surf, (acc[0], acc[1], acc[2], 12), (orb3_x, orb3_y), int(min(w, h) * 0.28))
+    pygame.draw.circle(glow_surf, (acc[0], acc[1], acc[2], 22), (orb1_x, orb1_y), int(min(w, h) * 0.34))
+    pygame.draw.circle(glow_surf, (acc[0], acc[1], acc[2], 18), (orb2_x, orb2_y), int(min(w, h) * 0.40))
+    pygame.draw.circle(glow_surf, (acc[0], acc[1], acc[2], 14), (orb3_x, orb3_y), int(min(w, h) * 0.28))
     screen.blit(glow_surf, (0, 0))
 
 def draw_welcome_screen(w, h):
@@ -103,7 +103,7 @@ def draw_welcome_screen(w, h):
     draw_animated_background(w, h)
     theme = THEMES[selected_theme_key]
 
-    # Studio Hero Glass Card
+    # Clean Floating Glassmorphism Hero Panel
     hero_w = min(int(w * 0.68), 680)
     hero_h = min(int(h * 0.68), 480)
     hero_rect = pygame.Rect((w - hero_w) // 2, (h - hero_h) // 2 - 10, hero_w, hero_h)
@@ -407,7 +407,7 @@ def draw_playing(w, h):
                 screen.blit(let_s, (bx + cs//2 - let_s.get_width()//2, by + cs//2 - let_s.get_height()//2))
     screen.blit(board_surf, (0, 0))
 
-    # Idle Grid Lines
+    # Grid Lines
     for r in range(board.dot_count):
         for c in range(grid_size):
             x1, y1 = ox + c * cs, oy + r * cs

@@ -2,7 +2,7 @@ import ctypes
 import os
 import pygame
 
-# Enable Native OS DPI Awareness for Razor-Sharp FHD/4K Text
+# Enable Native OS DPI Awareness
 try:
     if os.name == 'nt':
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
@@ -19,11 +19,11 @@ APP_TITLE = "DOTS & BOXES"
 APP_VERSION = "v1.0.0"
 APP_BUILD_TYPE = "Desktop Standalone Edition"
 
-# Studio-Grade Modern Dark Color Schemes
+# Premium Studio Color Schemes
 THEMES = {
     "Cyber Slate": {
         "bg_top": (15, 23, 42),
-        "bg_bottom": (10, 15, 29),
+        "bg_bottom": (9, 14, 26),
         "grid_dots_base": (28, 40, 64),
         "panel": (22, 30, 48),
         "panel_surface": (16, 22, 36),
