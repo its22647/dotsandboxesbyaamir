@@ -13,7 +13,6 @@ class GameBoard:
         self.v_lines = [[None for _ in range(self.dot_count)] for _ in range(grid_size)]
         self.boxes = [[None for _ in range(grid_size)] for _ in range(grid_size)]
         
-        # Line Animation Queue
         self.animating_lines = []
         
         self.scores = [0] * num_players
@@ -21,7 +20,7 @@ class GameBoard:
         self.total_boxes = grid_size * grid_size
 
     def get_layout_geometry(self, screen_w, screen_h):
-        top_bar_h = max(38, int(screen_h * 0.072))
+        top_bar_h = max(42, int(screen_h * 0.078))
         top_bar_y = max(8, int(screen_h * 0.015))
         top_bar_bottom = top_bar_y + top_bar_h
 
@@ -66,16 +65,12 @@ class GameBoard:
     def get_valid_neighbors(self, dot):
         r, c = dot
         valid = []
-        # Right
         if c + 1 < self.dot_count and self.h_lines[r][c] is None:
             valid.append((r, c + 1))
-        # Left
         if c - 1 >= 0 and self.h_lines[r][c - 1] is None:
             valid.append((r, c - 1))
-        # Down
         if r + 1 < self.dot_count and self.v_lines[r][c] is None:
             valid.append((r + 1, c))
-        # Up
         if r - 1 >= 0 and self.v_lines[r - 1][c] is None:
             valid.append((r - 1, c))
         return valid
