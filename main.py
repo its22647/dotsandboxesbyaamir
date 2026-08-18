@@ -1,5 +1,6 @@
 import sys
 import math
+import time
 import pygame
 from constants import (
     DEFAULT_WIDTH, DEFAULT_HEIGHT, DEVELOPER_NAME, APP_TITLE,
@@ -22,15 +23,19 @@ confirm_modal = None
 selected_theme_key = "Cyber Slate"
 num_players = 2
 grid_size = 4
-available_grids = [3, 4, 5, 6, 7, 8]
-player_names = ["Player 1", "Player 2", "Player 3", "Player 4"]
-player_color_indices = [0, 1, 2, 3]
+available_grids = [3, 4, 5, 6, 7, 8, 12]
+player_names = ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5"]
+player_color_indices = [0, 1, 2, 3, 4]
 
 active_input_idx = None
 select_all = False
 
 board = None
 drag_start_dot = None
+
+# Updated Per-Turn Timer (25s)
+TURN_DURATION = 25.0
+turn_start_time = 0.0
 
 global_tick = 0
 welcome_intro_timer = 0
@@ -244,14 +249,14 @@ def draw_menu(w, h):
     pygame.draw.rect(screen, theme["panel_border"], card, width=2, border_radius=18)
 
     # 1. Themes Selector
-    t_y = card.top + int(card_h * 0.035)
-    lbl1 = get_scaled_font(card_h * 0.032, bold=True).render("ARENA THEME", True, theme["text_main"])
+    t_y = card.top + int(card_h * 0.030)
+    lbl1 = get_scaled_font(card_h * 0.030, bold=True).render("ARENA THEME", True, theme["text_main"])
     screen.blit(lbl1, (card.left + 30, t_y))
     
     t_keys = list(THEMES.keys())
     btn_w = (card_w - 60 - ((len(t_keys)-1)*10)) // len(t_keys)
     for i, tname in enumerate(t_keys):
-        b = pygame.Rect(card.left + 30 + (i*(btn_w+10)), t_y + int(card_h * 0.046), btn_w, int(card_h * 0.065))
+        b = pygame.Rect(card.left + 30 + (i*(btn_w+10)), t_y + int(card_h * 0.040), btn_w, int(card_h * 0.058))
         sel = (selected_theme_key == tname)
         pygame.draw.rect(screen, theme["accent"] if sel else theme["panel_surface"], b, border_radius=8)
         pygame.draw.rect(screen, theme["panel_border"], b, width=1, border_radius=8)
@@ -259,40 +264,40 @@ def draw_menu(w, h):
         screen.blit(bt, (b.centerx - bt.get_width()//2, b.centery - bt.get_height()//2))
 
     # 2. Players & Grid Matrix Row
-    p_y = card.top + int(card_h * 0.17)
-    lbl2 = get_scaled_font(card_h * 0.032, bold=True).render("PLAYERS", True, theme["text_main"])
+    p_y = card.top + int(card_h * 0.155)
+    lbl2 = get_scaled_font(card_h * 0.030, bold=True).render("PLAYERS", True, theme["text_main"])
     screen.blit(lbl2, (card.left + 30, p_y))
-    for i, cnt in enumerate([2, 3, 4]):
-        b = pygame.Rect(card.left + 30 + (i * 95), p_y + int(card_h * 0.046), 88, int(card_h * 0.065))
+    for i, cnt in enumerate([2, 3, 4, 5]):
+        b = pygame.Rect(card.left + 30 + (i * 76), p_y + int(card_h * 0.040), 70, int(card_h * 0.058))
         sel = (num_players == cnt)
         pygame.draw.rect(screen, (16, 255, 130) if sel else theme["panel_surface"], b, border_radius=8)
         pygame.draw.rect(screen, theme["panel_border"], b, width=1, border_radius=8)
-        bt = get_scaled_font(b.height * 0.45, bold=True).render(f"{cnt} Players", True, (0, 0, 0) if sel else theme["text_main"])
+        bt = get_scaled_font(b.height * 0.45, bold=True).render(f"{cnt}P", True, (0, 0, 0) if sel else theme["text_main"])
         screen.blit(bt, (b.centerx - bt.get_width()//2, b.centery - bt.get_height()//2))
 
-    lbl3 = get_scaled_font(card_h * 0.032, bold=True).render("GRID MATRIX", True, theme["text_main"])
+    lbl3 = get_scaled_font(card_h * 0.030, bold=True).render("GRID MATRIX", True, theme["text_main"])
     screen.blit(lbl3, (card.left + 360, p_y))
     for i, sz in enumerate(available_grids):
-        b = pygame.Rect(card.left + 360 + (i * 75), p_y + int(card_h * 0.046), 68, int(card_h * 0.065))
+        b = pygame.Rect(card.left + 360 + (i * 68), p_y + int(card_h * 0.040), 62, int(card_h * 0.058))
         sel = (grid_size == sz)
         pygame.draw.rect(screen, (255, 195, 0) if sel else theme["panel_surface"], b, border_radius=8)
         pygame.draw.rect(screen, theme["panel_border"], b, width=1, border_radius=8)
         bt = get_scaled_font(b.height * 0.45, bold=True).render(f"{sz}x{sz}", True, (0, 0, 0) if sel else theme["text_main"])
         screen.blit(bt, (b.centerx - bt.get_width()//2, b.centery - bt.get_height()//2))
 
-    # 3. Player Identity & Color Picker Rows
-    n_y = card.top + int(card_h * 0.32)
-    lbl4 = get_scaled_font(card_h * 0.030, bold=True).render("PLAYER IDENTITIES & COLOR ALLOCATION", True, theme["text_sub"])
+    # 3. Player Identities & Color Selector Cards
+    n_y = card.top + int(card_h * 0.285)
+    lbl4 = get_scaled_font(card_h * 0.028, bold=True).render("PLAYER IDENTITIES & COLOR ALLOCATION", True, theme["text_sub"])
     screen.blit(lbl4, (card.left + 30, n_y))
 
-    row_h = int(card_h * 0.10)
+    row_h = int(card_h * 0.085)
     for i in range(num_players):
-        row_y = n_y + int(card_h * 0.042) + (i * (row_h + 6))
+        row_y = n_y + int(card_h * 0.038) + (i * (row_h + 5))
         row_rect = pygame.Rect(card.left + 30, row_y, card_w - 60, row_h)
         pygame.draw.rect(screen, theme["panel_surface"], row_rect, border_radius=10)
         pygame.draw.rect(screen, theme["panel_border"], row_rect, width=1, border_radius=10)
 
-        in_box = pygame.Rect(row_rect.left + 12, row_rect.top + 6, int(row_rect.width * 0.34), row_rect.height - 12)
+        in_box = pygame.Rect(row_rect.left + 12, row_rect.top + 5, int(row_rect.width * 0.34), row_rect.height - 10)
         is_focus = (active_input_idx == i)
         curr_p_rgb = get_player_rgb(i)
 
@@ -331,42 +336,61 @@ def draw_menu(w, h):
                     pygame.draw.rect(screen, (255, 255, 255), swatch_rect, width=3, border_radius=6)
 
     # Start Match Button
-    play_btn = pygame.Rect(card.centerx - int(card_w * 0.22), card.bottom - int(card_h * 0.11), int(card_w * 0.44), int(card_h * 0.085))
+    play_btn = pygame.Rect(card.centerx - int(card_w * 0.22), card.bottom - int(card_h * 0.10), int(card_w * 0.44), int(card_h * 0.080))
     pygame.draw.rect(screen, (255, 51, 102), play_btn, border_radius=10)
     pt = get_scaled_font(play_btn.height * 0.48, bold=True).render("START MATCH", True, (255, 255, 255))
     screen.blit(pt, (play_btn.centerx - pt.get_width()//2, play_btn.centery - pt.get_height()//2))
 
-def draw_playing(w, h):
+def draw_playing(w, h, time_left):
     draw_animated_background(w, h)
     theme = THEMES[selected_theme_key]
     ox, oy, cs, card_x, card_y, card_size = board.get_layout_geometry(w, h)
 
     # Top Bar
-    bar_h = max(36, int(h * 0.065))
+    bar_h = max(38, int(h * 0.072))
     top_bar = pygame.Rect(int(w * 0.03), int(h * 0.015), w - int(w * 0.06), bar_h)
     pygame.draw.rect(screen, theme["panel"], top_bar, border_radius=12)
     pygame.draw.rect(screen, theme["panel_border"], top_bar, width=1, border_radius=12)
 
     # Menu Button
-    m_btn = pygame.Rect(top_bar.left + 10, top_bar.centery - int(bar_h * 0.35), int(top_bar.width * 0.12), int(bar_h * 0.70))
+    m_btn = pygame.Rect(top_bar.left + 10, top_bar.centery - int(bar_h * 0.35), int(top_bar.width * 0.11), int(bar_h * 0.70))
     pygame.draw.rect(screen, theme["panel_surface"], m_btn, border_radius=8)
     pygame.draw.rect(screen, theme["panel_border"], m_btn, width=1, border_radius=8)
     mt = get_scaled_font(m_btn.height * 0.42, bold=True).render("⮌ Menu", True, theme["text_main"])
     screen.blit(mt, (m_btn.centerx - mt.get_width()//2, m_btn.centery - mt.get_height()//2))
 
-    # Turn Indicator
-    curr_turn_rgb = get_player_rgb(board.current_turn)
-    curr_p_name = player_names[board.current_turn]
-    turn_txt = get_scaled_font(bar_h * 0.45, bold=True).render(f"{curr_p_name}'s Turn", True, curr_turn_rgb)
-    screen.blit(turn_txt, (top_bar.centerx - turn_txt.get_width()//2, top_bar.centery - turn_txt.get_height()//2))
-
     # Restart Button
-    r_btn = pygame.Rect(top_bar.right - int(top_bar.width * 0.12) - 10, top_bar.centery - int(bar_h * 0.35), int(top_bar.width * 0.12), int(bar_h * 0.70))
+    r_btn = pygame.Rect(top_bar.right - int(top_bar.width * 0.11) - 10, top_bar.centery - int(bar_h * 0.35), int(top_bar.width * 0.11), int(bar_h * 0.70))
     pygame.draw.rect(screen, (255, 51, 102), r_btn, border_radius=8)
     rt = get_scaled_font(r_btn.height * 0.42, bold=True).render("🔄 Restart", True, (255, 255, 255))
     screen.blit(rt, (r_btn.centerx - rt.get_width()//2, r_btn.centery - rt.get_height()//2))
 
-    # --- SOLID BOARD CARD (Perfectly bounded between Top & Bottom bars) ---
+    # Integrated Center Status & Big 25s Timer Badge
+    center_badge_w = min(int(top_bar.width * 0.46), 420)
+    center_badge_h = int(bar_h * 0.78)
+    center_badge = pygame.Rect(top_bar.centerx - center_badge_w//2, top_bar.centery - center_badge_h//2, center_badge_w, center_badge_h)
+
+    curr_turn_rgb = get_player_rgb(board.current_turn)
+    curr_p_name = player_names[board.current_turn]
+    timer_col = (255, 51, 102) if time_left <= 7 else (16, 255, 130)
+
+    pygame.draw.rect(screen, (10, 14, 24), center_badge, border_radius=10)
+    pygame.draw.rect(screen, curr_turn_rgb, center_badge, width=1, border_radius=10)
+
+    pygame.draw.circle(screen, curr_turn_rgb, (center_badge.left + 16, center_badge.centery), 6)
+    name_txt = get_scaled_font(center_badge_h * 0.46, bold=True).render(f"{curr_p_name}'s Turn", True, curr_turn_rgb)
+    screen.blit(name_txt, (center_badge.left + 28, center_badge.centery - name_txt.get_height()//2))
+
+    t_sec_val = int(math.ceil(time_left))
+    timer_badge_rect = pygame.Rect(center_badge.right - int(center_badge_w * 0.28) - 8, center_badge.top + 4, int(center_badge_w * 0.28), center_badge_h - 8)
+    pygame.draw.rect(screen, theme["panel_surface"], timer_badge_rect, border_radius=6)
+    pygame.draw.rect(screen, timer_col, timer_badge_rect, width=1, border_radius=6)
+
+    timer_str = f"⏱ {t_sec_val}s"
+    t_surf = get_scaled_font(timer_badge_rect.height * 0.52, bold=True).render(timer_str, True, timer_col)
+    screen.blit(t_surf, (timer_badge_rect.centerx - t_surf.get_width()//2, timer_badge_rect.centery - t_surf.get_height()//2))
+
+    # Solid Board Card Surface
     board_card = pygame.Rect(card_x, card_y, card_size, card_size)
     card_shadow = board_card.copy()
     card_shadow.y += 4
@@ -407,8 +431,8 @@ def draw_playing(w, h):
             if board.v_lines[r][c] is None:
                 pygame.draw.line(screen, theme["grid_idle"], (x1, y1), (x1, y2), max(2, cs//28))
 
-    # Placed Connected Lines
-    line_thickness = max(4, int(cs * 0.09))
+    # Placed Lines
+    line_thickness = max(3, int(cs * 0.09))
     for r in range(board.dot_count):
         for c in range(grid_size):
             owner = board.h_lines[r][c]
@@ -423,6 +447,80 @@ def draw_playing(w, h):
                 col = get_player_rgb(owner)
                 pygame.draw.line(screen, col, (ox + c*cs, oy + r*cs), (ox + c*cs, oy + (r+1)*cs), line_thickness)
 
+    # --- ADVANCED HIGH-IMPACT VECTOR LINE ANIMATION ---
+    now = time.time()
+    ANIM_DURATION = 0.16
+    active_anims = []
+    glow_overlay = pygame.Surface((w, h), pygame.SRCALPHA)
+
+    for anim in board.animating_lines:
+        progress = min(1.0, (now - anim["start_t"]) / ANIM_DURATION)
+        col = get_player_rgb(anim["p"])
+        extra_th = max(5, int(line_thickness * 1.65))
+
+        if anim["type"] == "H":
+            if anim.get("dir", 1) == 1:
+                x1 = ox + anim["c"] * cs
+                x2 = x1 + int(cs * progress)
+            else:
+                x1 = ox + (anim["c"] + 1) * cs
+                x2 = x1 - int(cs * progress)
+            y = oy + anim["r"] * cs
+            
+            # Thick Neon Base + Expanding Core
+            pygame.draw.line(screen, col, (x1, y), (x2, y), extra_th)
+            pygame.draw.line(screen, (255, 255, 255), (x1, y), (x2, y), max(2, extra_th // 3))
+            
+            # Glowing Leading Head
+            pygame.draw.circle(glow_overlay, (col[0], col[1], col[2], 180), (x2, y), max(8, int(cs * 0.18)))
+            pygame.draw.circle(screen, (255, 255, 255), (x2, y), max(4, extra_th // 2))
+
+            # Shockwave Burst on Completion
+            if progress >= 1.0:
+                burst_rad = int(cs * 0.24)
+                pygame.draw.circle(glow_overlay, (col[0], col[1], col[2], 120), ((x1 + x2)//2, y), burst_rad)
+        else:
+            if anim.get("dir", 1) == 1:
+                y1 = oy + anim["r"] * cs
+                y2 = y1 + int(cs * progress)
+            else:
+                y1 = oy + (anim["r"] + 1) * cs
+                y2 = y1 - int(cs * progress)
+            x = ox + anim["c"] * cs
+
+            pygame.draw.line(screen, col, (x, y1), (x, y2), extra_th)
+            pygame.draw.line(screen, (255, 255, 255), (x, y1), (x, y2), max(2, extra_th // 3))
+            
+            pygame.draw.circle(glow_overlay, (col[0], col[1], col[2], 180), (x, y2), max(8, int(cs * 0.18)))
+            pygame.draw.circle(screen, (255, 255, 255), (x, y2), max(4, extra_th // 2))
+
+            if progress >= 1.0:
+                burst_rad = int(cs * 0.24)
+                pygame.draw.circle(glow_overlay, (col[0], col[1], col[2], 120), (x, (y1 + y2)//2), burst_rad)
+
+        if progress < 1.0:
+            active_anims.append(anim)
+    board.animating_lines = active_anims
+    screen.blit(glow_overlay, (0, 0))
+
+    # --- TARGET DOT PULSE AURAS (Guidance Rings for Valid Neighbors) ---
+    dot_r = max(3, int(cs * 0.08))
+    if drag_start_dot is not None:
+        valid_neighbors = board.get_valid_neighbors(drag_start_dot)
+        pulse_phase = (global_tick % 30) / 30.0
+        ring_rad = dot_r + int(pulse_phase * (cs * 0.22))
+        ring_alpha = int((1.0 - pulse_phase) * 230)
+        curr_turn_col = get_player_rgb(board.current_turn)
+
+        aura_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        for nr, nc in valid_neighbors:
+            nx, ny = board.get_dot_coords(nr, nc, w, h)
+            # Expanding Glowing Ring
+            pygame.draw.circle(aura_surf, (curr_turn_col[0], curr_turn_col[1], curr_turn_col[2], ring_alpha), (nx, ny), ring_rad, width=2)
+            # Solid Inner Target Accent
+            pygame.draw.circle(aura_surf, (curr_turn_col[0], curr_turn_col[1], curr_turn_col[2], 140), (nx, ny), dot_r + 3)
+        screen.blit(aura_surf, (0, 0))
+
     # Elastic Drag Line
     if drag_start_dot is not None:
         d_r, d_c = drag_start_dot
@@ -430,27 +528,31 @@ def draw_playing(w, h):
         mx, my = pygame.mouse.get_pos()
         curr_col = get_player_rgb(board.current_turn)
         pygame.draw.line(screen, curr_col, (sx, sy), (mx, my), line_thickness)
-        pygame.draw.circle(screen, curr_col, (sx, sy), max(5, cs//9))
+        pygame.draw.circle(screen, curr_col, (sx, sy), max(4, cs//9))
 
     # Dots
-    dot_r = max(4, int(cs * 0.08))
     for r in range(board.dot_count):
         for c in range(board.dot_count):
             px, py = ox + c * cs, oy + r * cs
             pygame.draw.circle(screen, (8, 12, 20), (px, py), dot_r + 2)
             pygame.draw.circle(screen, theme["dot"], (px, py), dot_r)
 
-    # Protected Horizontal Bottom Scoreboard
+    # Selected Drag Start Dot Highlight
+    if drag_start_dot is not None:
+        dsx, dsy = board.get_dot_coords(drag_start_dot[0], drag_start_dot[1], w, h)
+        pygame.draw.circle(screen, (255, 255, 255), (dsx, dsy), dot_r + 3, width=2)
+
+    # Bottom Scoreboard Supporting up to 5 Players
     sb_w = w - int(w * 0.06)
     sb_h = max(56, int(h * 0.12))
     sb_rect = pygame.Rect(int(w * 0.03), h - sb_h - max(8, int(h * 0.015)), sb_w, sb_h)
     pygame.draw.rect(screen, theme["panel"], sb_rect, border_radius=12)
     pygame.draw.rect(screen, theme["panel_border"], sb_rect, width=1, border_radius=12)
 
-    card_spacing = 10
-    card_w = (sb_w - 20 - ((num_players - 1) * card_spacing)) // num_players
+    card_spacing = 8
+    card_w = (sb_w - 16 - ((num_players - 1) * card_spacing)) // num_players
     for i in range(num_players):
-        cx = sb_rect.left + 10 + (i * (card_w + card_spacing))
+        cx = sb_rect.left + 8 + (i * (card_w + card_spacing))
         card_r = pygame.Rect(cx, sb_rect.top + 6, card_w, sb_h - 12)
         is_turn = (i == board.current_turn)
         p_col = get_player_rgb(i)
@@ -458,20 +560,20 @@ def draw_playing(w, h):
         pygame.draw.rect(screen, theme["panel_surface"], card_r, border_radius=8)
         pygame.draw.rect(screen, p_col if is_turn else theme["panel_border"], card_r, width=2 if is_turn else 1, border_radius=8)
 
-        av_r = int(card_r.height * 0.30)
-        pygame.draw.circle(screen, p_col, (card_r.left + av_r + 8, card_r.centery), av_r)
+        av_r = max(8, int(card_r.height * 0.28))
+        pygame.draw.circle(screen, p_col, (card_r.left + av_r + 6, card_r.centery), av_r)
         
         av_txt = get_scaled_font(av_r * 1.1, bold=True).render(player_names[i][:1].upper(), True, (255, 255, 255))
-        screen.blit(av_txt, (card_r.left + av_r + 8 - av_txt.get_width()//2, card_r.centery - av_txt.get_height()//2))
+        screen.blit(av_txt, (card_r.left + av_r + 6 - av_txt.get_width()//2, card_r.centery - av_txt.get_height()//2))
 
-        nm = get_scaled_font(card_r.height * 0.28, bold=True).render(player_names[i], True, theme["text_main"])
-        screen.blit(nm, (card_r.left + (av_r * 2) + 16, card_r.top + int(card_r.height * 0.16)))
+        nm = get_scaled_font(card_r.height * 0.26, bold=True).render(player_names[i], True, theme["text_main"])
+        screen.blit(nm, (card_r.left + (av_r * 2) + 12, card_r.top + int(card_r.height * 0.16)))
 
-        sc_lbl = get_scaled_font(card_r.height * 0.22).render("Boxes:", True, theme["text_sub"])
-        screen.blit(sc_lbl, (card_r.left + (av_r * 2) + 16, card_r.top + int(card_r.height * 0.52)))
+        sc_lbl = get_scaled_font(card_r.height * 0.20).render("Boxes:", True, theme["text_sub"])
+        screen.blit(sc_lbl, (card_r.left + (av_r * 2) + 12, card_r.top + int(card_r.height * 0.52)))
 
-        sc_num = get_scaled_font(card_r.height * 0.42, bold=True).render(str(board.scores[i]), True, p_col)
-        screen.blit(sc_num, (card_r.right - sc_num.get_width() - 12, card_r.centery - sc_num.get_height()//2))
+        sc_num = get_scaled_font(card_r.height * 0.40, bold=True).render(str(board.scores[i]), True, p_col)
+        screen.blit(sc_num, (card_r.right - sc_num.get_width() - 8, card_r.centery - sc_num.get_height()//2))
 
 def draw_gameover_dialog(w, h):
     theme = THEMES[selected_theme_key]
@@ -479,7 +581,7 @@ def draw_gameover_dialog(w, h):
     overlay.fill((0, 0, 0, 215))
     screen.blit(overlay, (0, 0))
 
-    modal_w, modal_h = min(int(w * 0.8), 480), min(int(h * 0.72), 420)
+    modal_w, modal_h = min(int(w * 0.8), 500), min(int(h * 0.78), 460)
     rect = pygame.Rect((w - modal_w)//2, (h - modal_h)//2, modal_w, modal_h)
 
     pygame.draw.rect(screen, theme["panel"], rect, border_radius=18)
@@ -493,11 +595,11 @@ def draw_gameover_dialog(w, h):
     w_col = theme["text_main"] if is_tie else get_player_rgb(winner_idx)
 
     wt = get_scaled_font(modal_h * 0.08, bold=True).render(w_title, True, w_col)
-    screen.blit(wt, (rect.centerx - wt.get_width()//2, rect.top + int(modal_h * 0.08)))
+    screen.blit(wt, (rect.centerx - wt.get_width()//2, rect.top + int(modal_h * 0.06)))
 
     for rank, (p_idx, sc) in enumerate(ranked):
-        r_y = rect.top + int(modal_h * 0.22) + (rank * int(modal_h * 0.12))
-        r_rect = pygame.Rect(rect.left + 25, r_y, modal_w - 50, int(modal_h * 0.10))
+        r_y = rect.top + int(modal_h * 0.18) + (rank * int(modal_h * 0.10))
+        r_rect = pygame.Rect(rect.left + 25, r_y, modal_w - 50, int(modal_h * 0.085))
         p_col = get_player_rgb(p_idx)
         
         pygame.draw.rect(screen, theme["panel_surface"], r_rect, border_radius=8)
@@ -506,12 +608,12 @@ def draw_gameover_dialog(w, h):
         screen.blit(p_name, (r_rect.left + 15, r_rect.centery - p_name.get_height()//2))
         screen.blit(p_sc, (r_rect.right - 15 - p_sc.get_width(), r_rect.centery - p_sc.get_height()//2))
 
-    rematch_btn = pygame.Rect(rect.left + 25, rect.bottom - int(modal_h * 0.18), (modal_w - 60)//2, int(modal_h * 0.11))
+    rematch_btn = pygame.Rect(rect.left + 25, rect.bottom - int(modal_h * 0.16), (modal_w - 60)//2, int(modal_h * 0.10))
     pygame.draw.rect(screen, (0, 210, 255), rematch_btn, border_radius=8)
     rt = get_scaled_font(rematch_btn.height * 0.45, bold=True).render("Rematch", True, (0, 0, 0))
     screen.blit(rt, (rematch_btn.centerx - rt.get_width()//2, rematch_btn.centery - rt.get_height()//2))
 
-    menu_btn = pygame.Rect(rect.right - 25 - rematch_btn.width, rect.bottom - int(modal_h * 0.18), rematch_btn.width, rematch_btn.height)
+    menu_btn = pygame.Rect(rect.right - 25 - rematch_btn.width, rect.bottom - int(modal_h * 0.16), rematch_btn.width, rematch_btn.height)
     pygame.draw.rect(screen, theme["panel_border"], menu_btn, border_radius=8)
     mt = get_scaled_font(menu_btn.height * 0.45, bold=True).render("Main Menu", True, theme["text_main"])
     screen.blit(mt, (menu_btn.centerx - mt.get_width()//2, menu_btn.centery - mt.get_height()//2))
@@ -521,6 +623,17 @@ while True:
     global_tick += 1
     cur_w, cur_h = screen.get_size()
     mx, my = pygame.mouse.get_pos()
+
+    # Per-Turn Timeout Logic (25s)
+    time_left = TURN_DURATION
+    if current_state == "PLAYING" and confirm_modal is None and not show_about:
+        elapsed = time.time() - turn_start_time
+        time_left = max(0.0, TURN_DURATION - elapsed)
+        if time_left <= 0.0:
+            board.auto_play_random_move()
+            turn_start_time = time.time()
+            if board.is_game_over():
+                current_state = "GAMEOVER"
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -550,6 +663,7 @@ while True:
                 if yes_btn.collidepoint(mx, my):
                     if confirm_modal == 'RESTART':
                         board = GameBoard(grid_size, num_players, player_color_indices)
+                        turn_start_time = time.time()
                     elif confirm_modal == 'MENU':
                         current_state = "MENU"
                     confirm_modal = None
@@ -586,34 +700,34 @@ while True:
                     about_type_timer = 0
                     show_about = True
 
-                t_y = card.top + int(card_h * 0.035)
+                t_y = card.top + int(card_h * 0.030)
                 t_keys = list(THEMES.keys())
                 btn_w = (card_w - 60 - ((len(t_keys)-1)*10)) // len(t_keys)
                 for i, tname in enumerate(t_keys):
-                    b = pygame.Rect(card.left + 30 + (i*(btn_w+10)), t_y + int(card_h * 0.046), btn_w, int(card_h * 0.065))
+                    b = pygame.Rect(card.left + 30 + (i*(btn_w+10)), t_y + int(card_h * 0.040), btn_w, int(card_h * 0.058))
                     if b.collidepoint(mx, my):
                         selected_theme_key = tname
 
-                p_y = card.top + int(card_h * 0.17)
-                for i, cnt in enumerate([2, 3, 4]):
-                    b = pygame.Rect(card.left + 30 + (i * 95), p_y + int(card_h * 0.046), 88, int(card_h * 0.065))
+                p_y = card.top + int(card_h * 0.155)
+                for i, cnt in enumerate([2, 3, 4, 5]):
+                    b = pygame.Rect(card.left + 30 + (i * 76), p_y + int(card_h * 0.040), 70, int(card_h * 0.058))
                     if b.collidepoint(mx, my):
                         num_players = cnt
 
                 for i, sz in enumerate(available_grids):
-                    b = pygame.Rect(card.left + 360 + (i * 75), p_y + int(card_h * 0.046), 68, int(card_h * 0.065))
+                    b = pygame.Rect(card.left + 360 + (i * 68), p_y + int(card_h * 0.040), 62, int(card_h * 0.058))
                     if b.collidepoint(mx, my):
                         grid_size = sz
 
-                n_y = card.top + int(card_h * 0.32)
-                row_h = int(card_h * 0.10)
+                n_y = card.top + int(card_h * 0.285)
+                row_h = int(card_h * 0.085)
                 active_input_idx = None
                 select_all = False
 
                 for i in range(num_players):
-                    row_y = n_y + int(card_h * 0.042) + (i * (row_h + 6))
+                    row_y = n_y + int(card_h * 0.038) + (i * (row_h + 5))
                     row_rect = pygame.Rect(card.left + 30, row_y, card_w - 60, row_h)
-                    in_box = pygame.Rect(row_rect.left + 12, row_rect.top + 6, int(row_rect.width * 0.34), row_rect.height - 12)
+                    in_box = pygame.Rect(row_rect.left + 12, row_rect.top + 5, int(row_rect.width * 0.34), row_rect.height - 10)
                     
                     if in_box.collidepoint(mx, my):
                         active_input_idx = i
@@ -630,9 +744,10 @@ while True:
                             if not is_chosen_by_other:
                                 player_color_indices[i] = c_idx
 
-                play_btn = pygame.Rect(card.centerx - int(card_w * 0.22), card.bottom - int(card_h * 0.11), int(card_w * 0.44), int(card_h * 0.085))
+                play_btn = pygame.Rect(card.centerx - int(card_w * 0.22), card.bottom - int(card_h * 0.10), int(card_w * 0.44), int(card_h * 0.080))
                 if play_btn.collidepoint(mx, my):
                     board = GameBoard(grid_size, num_players, player_color_indices)
+                    turn_start_time = time.time()
                     current_state = "PLAYING"
 
             elif event.type == pygame.KEYDOWN and active_input_idx is not None:
@@ -655,10 +770,10 @@ while True:
                         player_names[active_input_idx] += event.unicode
 
         elif current_state == "PLAYING":
-            bar_h = max(36, int(cur_h * 0.065))
+            bar_h = max(38, int(cur_h * 0.072))
             top_bar = pygame.Rect(int(cur_w * 0.03), int(cur_h * 0.015), cur_w - int(cur_w * 0.06), bar_h)
-            m_btn = pygame.Rect(top_bar.left + 10, top_bar.centery - int(bar_h * 0.35), int(top_bar.width * 0.12), int(bar_h * 0.70))
-            r_btn = pygame.Rect(top_bar.right - int(top_bar.width * 0.12) - 10, top_bar.centery - int(bar_h * 0.35), int(top_bar.width * 0.12), int(bar_h * 0.70))
+            m_btn = pygame.Rect(top_bar.left + 10, top_bar.centery - int(bar_h * 0.35), int(top_bar.width * 0.11), int(bar_h * 0.70))
+            r_btn = pygame.Rect(top_bar.right - int(top_bar.width * 0.11) - 10, top_bar.centery - int(bar_h * 0.35), int(top_bar.width * 0.11), int(bar_h * 0.70))
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if m_btn.collidepoint(mx, my):
@@ -675,19 +790,21 @@ while True:
                     target_dot = board.get_dot_at_pos(mx, my, cur_w, cur_h)
                     if target_dot and target_dot != drag_start_dot:
                         if board.connect_dots(drag_start_dot, target_dot):
+                            turn_start_time = time.time()
                             if board.is_game_over():
                                 current_state = "GAMEOVER"
                     drag_start_dot = None
 
         elif current_state == "GAMEOVER":
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                modal_w, modal_h = min(int(cur_w * 0.8), 480), min(int(cur_h * 0.72), 420)
+                modal_w, modal_h = min(int(cur_w * 0.8), 500), min(int(cur_h * 0.78), 460)
                 rect = pygame.Rect((cur_w - modal_w)//2, (cur_h - modal_h)//2, modal_w, modal_h)
-                rematch_btn = pygame.Rect(rect.left + 25, rect.bottom - int(modal_h * 0.18), (modal_w - 60)//2, int(modal_h * 0.11))
-                menu_btn = pygame.Rect(rect.right - 25 - rematch_btn.width, rect.bottom - int(modal_h * 0.18), rematch_btn.width, rematch_btn.height)
+                rematch_btn = pygame.Rect(rect.left + 25, rect.bottom - int(modal_h * 0.16), (modal_w - 60)//2, int(modal_h * 0.10))
+                menu_btn = pygame.Rect(rect.right - 25 - rematch_btn.width, rect.bottom - int(modal_h * 0.16), rematch_btn.width, rematch_btn.height)
 
                 if rematch_btn.collidepoint(mx, my):
                     board = GameBoard(grid_size, num_players, player_color_indices)
+                    turn_start_time = time.time()
                     current_state = "PLAYING"
                 elif menu_btn.collidepoint(mx, my):
                     current_state = "MENU"
@@ -697,9 +814,9 @@ while True:
     elif current_state == "MENU":
         draw_menu(cur_w, cur_h)
     elif current_state == "PLAYING":
-        draw_playing(cur_w, cur_h)
+        draw_playing(cur_w, cur_h, time_left)
     elif current_state == "GAMEOVER":
-        draw_playing(cur_w, cur_h)
+        draw_playing(cur_w, cur_h, 0.0)
         draw_gameover_dialog(cur_w, cur_h)
 
     if show_about:

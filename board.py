@@ -1,4 +1,6 @@
 import math
+import time
+import random
 
 class GameBoard:
     def __init__(self, grid_size, num_players, player_color_indices):
@@ -11,22 +13,22 @@ class GameBoard:
         self.v_lines = [[None for _ in range(self.dot_count)] for _ in range(grid_size)]
         self.boxes = [[None for _ in range(grid_size)] for _ in range(grid_size)]
         
+        # Line Animation Queue
+        self.animating_lines = []
+        
         self.scores = [0] * num_players
         self.current_turn = 0
         self.total_boxes = grid_size * grid_size
 
     def get_layout_geometry(self, screen_w, screen_h):
-        # 1. Top Bar Boundary
-        top_bar_h = max(36, int(screen_h * 0.065))
+        top_bar_h = max(38, int(screen_h * 0.072))
         top_bar_y = max(8, int(screen_h * 0.015))
         top_bar_bottom = top_bar_y + top_bar_h
 
-        # 2. Bottom Scoreboard Boundary
         sb_h = max(56, int(screen_h * 0.12))
         sb_bottom_margin = max(8, int(screen_h * 0.015))
         sb_top = screen_h - sb_h - sb_bottom_margin
 
-        # 3. Guaranteed Safe Clearance (No Overlap)
         gap_y = max(12, int(screen_h * 0.022))
         safe_top = top_bar_bottom + gap_y
         safe_bottom = sb_top - gap_y
@@ -34,13 +36,11 @@ class GameBoard:
         available_h = max(140, safe_bottom - safe_top)
         available_w = max(140, screen_w - max(40, int(screen_w * 0.10)))
 
-        # Card square dimension
         card_size = min(available_w, available_h)
         card_x = (screen_w - card_size) // 2
         card_y = safe_top + (available_h - card_size) // 2
 
-        # Compute cell size and inner padding
-        cs = max(18, int(card_size / (self.grid_size + 0.85)))
+        cs = max(14, int(card_size / (self.grid_size + 0.85)))
         padding = (card_size - (self.grid_size * cs)) // 2
 
         ox = card_x + padding
@@ -50,7 +50,7 @@ class GameBoard:
 
     def get_dot_at_pos(self, mx, my, screen_w, screen_h):
         ox, oy, cs, _, _, _ = self.get_layout_geometry(screen_w, screen_h)
-        tolerance = max(15, int(cs * 0.35))
+        tolerance = max(12, int(cs * 0.38))
         for r in range(self.dot_count):
             for c in range(self.dot_count):
                 dx = ox + c * cs
@@ -63,6 +63,23 @@ class GameBoard:
         ox, oy, cs, _, _, _ = self.get_layout_geometry(screen_w, screen_h)
         return (ox + c * cs, oy + r * cs)
 
+    def get_valid_neighbors(self, dot):
+        r, c = dot
+        valid = []
+        # Right
+        if c + 1 < self.dot_count and self.h_lines[r][c] is None:
+            valid.append((r, c + 1))
+        # Left
+        if c - 1 >= 0 and self.h_lines[r][c - 1] is None:
+            valid.append((r, c - 1))
+        # Down
+        if r + 1 < self.dot_count and self.v_lines[r][c] is None:
+            valid.append((r + 1, c))
+        # Up
+        if r - 1 >= 0 and self.v_lines[r - 1][c] is None:
+            valid.append((r - 1, c))
+        return valid
+
     def connect_dots(self, dot1, dot2):
         r1, c1 = dot1
         r2, c2 = dot2
@@ -74,6 +91,11 @@ class GameBoard:
                 col = min(c1, c2)
                 if self.h_lines[row][col] is None:
                     self.h_lines[row][col] = self.current_turn
+                    self.animating_lines.append({
+                        "type": "H", "r": row, "c": col,
+                        "dir": 1 if c2 > c1 else -1,
+                        "start_t": time.time(), "p": self.current_turn
+                    })
                     self._handle_move()
                     return True
             else:
@@ -81,9 +103,45 @@ class GameBoard:
                 col = c1
                 if self.v_lines[row][col] is None:
                     self.v_lines[row][col] = self.current_turn
+                    self.animating_lines.append({
+                        "type": "V", "r": row, "c": col,
+                        "dir": 1 if r2 > r1 else -1,
+                        "start_t": time.time(), "p": self.current_turn
+                    })
                     self._handle_move()
                     return True
         return False
+
+    def auto_play_random_move(self):
+        available_moves = []
+        for r in range(self.dot_count):
+            for c in range(self.grid_size):
+                if self.h_lines[r][c] is None:
+                    available_moves.append(('H', r, c))
+        for r in range(self.grid_size):
+            for c in range(self.dot_count):
+                if self.v_lines[r][c] is None:
+                    available_moves.append(('V', r, c))
+
+        if not available_moves:
+            return False
+
+        move_type, r, c = random.choice(available_moves)
+        if move_type == 'H':
+            self.h_lines[r][c] = self.current_turn
+            self.animating_lines.append({
+                "type": "H", "r": r, "c": c, "dir": 1,
+                "start_t": time.time(), "p": self.current_turn
+            })
+        else:
+            self.v_lines[r][c] = self.current_turn
+            self.animating_lines.append({
+                "type": "V", "r": r, "c": c, "dir": 1,
+                "start_t": time.time(), "p": self.current_turn
+            })
+
+        self._handle_move()
+        return True
 
     def _handle_move(self):
         new_boxes = 0
