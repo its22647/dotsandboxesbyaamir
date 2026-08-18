@@ -3,11 +3,12 @@ import time
 import random
 
 class GameBoard:
-    def __init__(self, grid_size, num_players, player_color_indices):
+    def __init__(self, grid_size, num_players, player_color_indices, vs_bot=False):
         self.grid_size = grid_size
         self.dot_count = grid_size + 1
         self.num_players = num_players
         self.player_colors = player_color_indices
+        self.vs_bot = vs_bot
         
         self.h_lines = [[None for _ in range(grid_size)] for _ in range(self.dot_count)]
         self.v_lines = [[None for _ in range(self.dot_count)] for _ in range(grid_size)]
@@ -107,21 +108,93 @@ class GameBoard:
                     return True
         return False
 
-    def auto_play_random_move(self):
-        available_moves = []
+    def _get_box_sides_count(self, r, c):
+        sides = 0
+        if self.h_lines[r][c] is not None: sides += 1
+        if self.h_lines[r + 1][c] is not None: sides += 1
+        if self.v_lines[r][c] is not None: sides += 1
+        if self.v_lines[r][c + 1] is not None: sides += 1
+        return sides
+
+    def _get_all_available_moves(self):
+        moves = []
         for r in range(self.dot_count):
             for c in range(self.grid_size):
                 if self.h_lines[r][c] is None:
-                    available_moves.append(('H', r, c))
+                    moves.append(('H', r, c))
         for r in range(self.grid_size):
             for c in range(self.dot_count):
                 if self.v_lines[r][c] is None:
-                    available_moves.append(('V', r, c))
+                    moves.append(('V', r, c))
+        return moves
 
-        if not available_moves:
+    def _move_creates_box(self, move):
+        mtype, r, c = move
+        completed = 0
+        if mtype == 'H':
+            if r > 0 and self._get_box_sides_count(r - 1, c) == 3:
+                completed += 1
+            if r < self.grid_size and self._get_box_sides_count(r, c) == 3:
+                completed += 1
+        else:
+            if c > 0 and self._get_box_sides_count(r, c - 1) == 3:
+                completed += 1
+            if c < self.grid_size and self._get_box_sides_count(r, c) == 3:
+                completed += 1
+        return completed
+
+    def _move_creates_third_side(self, move):
+        mtype, r, c = move
+        if mtype == 'H':
+            if r > 0 and self._get_box_sides_count(r - 1, c) == 2:
+                return True
+            if r < self.grid_size and self._get_box_sides_count(r, c) == 2:
+                return True
+        else:
+            if c > 0 and self._get_box_sides_count(r, c - 1) == 2:
+                return True
+            if c < self.grid_size and self._get_box_sides_count(r, c) == 2:
+                return True
+        return False
+
+    def play_smart_bot_move(self):
+        moves = self._get_all_available_moves()
+        if not moves:
             return False
 
-        move_type, r, c = random.choice(available_moves)
+        winning_moves = [m for m in moves if self._move_creates_box(m) > 0]
+        if winning_moves:
+            chosen = random.choice(winning_moves)
+        else:
+            safe_moves = [m for m in moves if not self._move_creates_third_side(m)]
+            if safe_moves:
+                chosen = random.choice(safe_moves)
+            else:
+                chosen = random.choice(moves)
+
+        mtype, r, c = chosen
+        if mtype == 'H':
+            self.h_lines[r][c] = self.current_turn
+            self.animating_lines.append({
+                "type": "H", "r": r, "c": c, "dir": 1,
+                "start_t": time.time(), "p": self.current_turn
+            })
+        else:
+            self.v_lines[r][c] = self.current_turn
+            self.animating_lines.append({
+                "type": "V", "r": r, "c": c, "dir": 1,
+                "start_t": time.time(), "p": self.current_turn
+            })
+
+        self._handle_move()
+        return True
+
+    def auto_play_random_move(self):
+        moves = self._get_all_available_moves()
+        if not moves:
+            return False
+
+        move_type, r, c = random.choice(moves)
         if move_type == 'H':
             self.h_lines[r][c] = self.current_turn
             self.animating_lines.append({
