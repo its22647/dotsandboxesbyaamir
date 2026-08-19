@@ -59,6 +59,9 @@ bot_action_scheduled = 0.0
 global_tick = 0
 welcome_intro_timer = 0
 about_type_timer = 0
+app_launch_time = time.time()
+
+celebration_particles = []
 
 bg_cache = None
 bg_cache_size = (0, 0)
@@ -184,11 +187,24 @@ def draw_welcome_screen(w, h):
     pygame.draw.rect(screen, theme["panel_surface"], exit_btn, border_radius=10)
     pygame.draw.rect(screen, (255, 51, 102), exit_btn, width=1, border_radius=10)
     et = get_scaled_font(exit_btn.height * 0.42, bold=True).render("Exit", True, (255, 51, 102))
-    # Perfect centering for Exit button text
+    # EXACT PERFECT CENTER MATH FOR EXIT BUTTON
     screen.blit(et, (exit_btn.centerx - et.get_width() // 2, exit_btn.centery - et.get_height() // 2))
 
     v_txt = get_scaled_font(min(w, h) * 0.018).render(f"{APP_VERSION} • {APP_BUILD_TYPE}", True, theme["text_sub"])
     screen.blit(v_txt, (w // 2 - v_txt.get_width() // 2, h - int(h * 0.035)))
+
+    if time.time() - app_launch_time <= 4.0:
+        pop_w, pop_h = min(int(w * 0.52), 480), min(int(h * 0.11), 75)
+        pop_rect = pygame.Rect(w // 2 - pop_w // 2, int(h * 0.04), pop_w, pop_h)
+        
+        pop_surf = pygame.Surface((pop_w, pop_h), pygame.SRCALPHA)
+        pygame.draw.rect(pop_surf, (15, 23, 42, 235), (0, 0, pop_w, pop_h), border_radius=14)
+        pygame.draw.rect(pop_surf, (0, 210, 255, 255), (0, 0, pop_w, pop_h), width=2, border_radius=14)
+        
+        hint_font = get_scaled_font(pop_h * 0.38, bold=True)
+        hint_surf = hint_font.render("💡 Press F11 for Fullscreen", True, (255, 255, 255))
+        pop_surf.blit(hint_surf, (pop_w // 2 - hint_surf.get_width() // 2, pop_h // 2 - hint_surf.get_height() // 2))
+        screen.blit(pop_surf, pop_rect.topleft)
 
 def draw_about_dialog(w, h):
     global about_type_timer
@@ -281,7 +297,7 @@ def draw_confirmation_dialog(w, h):
     no_btn = pygame.Rect(rect.right - 30 - btn_w, rect.bottom - btn_h - 18, btn_w, btn_h)
     pygame.draw.rect(screen, theme["panel_border"], no_btn, border_radius=10)
     nt = get_scaled_font(btn_h * 0.45, bold=True).render("Cancel", True, (255, 255, 255))
-    screen.blit(nt, (no_btn.centerx - nt.get_width()//2, no_btn.centery - nt.get_height()//2))
+    screen.blit(nt, (no_btn.centerx - nt.get_width() // 2, no_btn.centery - nt.get_height() // 2))
 
 def draw_pause_dialog(w, h):
     theme = THEMES[selected_theme_key]
@@ -822,16 +838,47 @@ def draw_playing(w, h, time_left):
         screen.blit(sc_num, (card_r.right - sc_num.get_width() - 8, card_r.centery - sc_num.get_height()//2))
 
 def draw_gameover_dialog(w, h):
+    global celebration_particles
     theme = THEMES[selected_theme_key]
+
     overlay = pygame.Surface((w, h), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 215))
+    overlay.fill((0, 0, 0, 210))
     screen.blit(overlay, (0, 0))
 
-    modal_w, modal_h = min(int(w * 0.8), 500), min(int(h * 0.78), 460)
+    modal_w, modal_h = min(int(w * 0.82), 520), min(int(h * 0.80), 480)
     rect = pygame.Rect((w - modal_w)//2, (h - modal_h)//2, modal_w, modal_h)
 
-    pygame.draw.rect(screen, theme["panel"], rect, border_radius=18)
-    pygame.draw.rect(screen, theme["panel_border"], rect, width=2, border_radius=18)
+    if not celebration_particles:
+        for _ in range(50):
+            celebration_particles.append({
+                "x": random.randint(rect.left + 15, rect.right - 15),
+                "y": random.randint(rect.top + 15, rect.bottom - 15),
+                "vx": random.uniform(-1.5, 1.5),
+                "vy": random.uniform(1.5, 3.5),
+                "color": random.choice([(255, 51, 102), (16, 255, 130), (0, 210, 255), (255, 195, 0), (255, 255, 255)]),
+                "size": random.randint(3, 7)
+            })
+
+    pygame.draw.rect(screen, (13, 18, 32), rect, border_radius=22)
+    pygame.draw.rect(screen, theme["accent"], rect, width=3, border_radius=22)
+
+    dialog_clip = rect.copy()
+    old_clip = screen.get_clip()
+    screen.set_clip(dialog_clip)
+
+    part_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    for p in celebration_particles:
+        p["x"] += p["vx"]
+        p["y"] += p["vy"]
+        if p["y"] > rect.bottom - 10:
+            p["y"] = rect.top + 10
+            p["x"] = random.randint(rect.left + 15, rect.right - 15)
+        if p["x"] < rect.left + 10 or p["x"] > rect.right - 10:
+            p["vx"] *= -1
+        pygame.draw.circle(part_surf, p["color"], (int(p["x"]), int(p["y"])), p["size"])
+    screen.blit(part_surf, (0, 0))
+
+    screen.set_clip(old_clip)
 
     ranked = sorted([(i, board.scores[i]) for i in range(board.num_players)], key=lambda x: x[1], reverse=True)
     is_tie = (ranked[0][1] == ranked[1][1])
@@ -840,7 +887,9 @@ def draw_gameover_dialog(w, h):
     w_title = "MATCH TIED!" if is_tie else f"{player_names[winner_idx]} WINS!"
     w_col = theme["text_main"] if is_tie else get_player_rgb(winner_idx)
 
-    wt = get_scaled_font(modal_h * 0.08, bold=True).render(w_title, True, w_col)
+    pulse_factor = 1.0 + 0.08 * math.sin(global_tick * 0.15)
+    title_font = get_scaled_font(modal_h * 0.08 * pulse_factor, bold=True)
+    wt = title_font.render(w_title, True, w_col)
     screen.blit(wt, (rect.centerx - wt.get_width()//2, rect.top + int(modal_h * 0.06)))
 
     for rank, (p_idx, sc) in enumerate(ranked):
@@ -848,21 +897,27 @@ def draw_gameover_dialog(w, h):
         r_rect = pygame.Rect(rect.left + 25, r_y, modal_w - 50, int(modal_h * 0.085))
         p_col = get_player_rgb(p_idx)
         
-        pygame.draw.rect(screen, theme["panel_surface"], r_rect, border_radius=8)
+        pygame.draw.rect(screen, (24, 32, 52), r_rect, border_radius=10)
+        pygame.draw.rect(screen, p_col if rank == 0 else theme["panel_border"], r_rect, width=2 if rank == 0 else 1, border_radius=10)
+        
         p_name = get_scaled_font(r_rect.height * 0.45, bold=True).render(f"#{rank+1}  {player_names[p_idx]}", True, p_col)
         p_sc = get_scaled_font(r_rect.height * 0.45, bold=True).render(f"{sc} Boxes", True, theme["text_main"])
         screen.blit(p_name, (r_rect.left + 15, r_rect.centery - p_name.get_height()//2))
         screen.blit(p_sc, (r_rect.right - 15 - p_sc.get_width(), r_rect.centery - p_sc.get_height()//2))
 
-    rematch_btn = pygame.Rect(rect.left + 25, rect.bottom - int(modal_h * 0.16), (modal_w - 60)//2, int(modal_h * 0.10))
-    pygame.draw.rect(screen, (0, 210, 255), rematch_btn, border_radius=8)
+    btn_h_val = int(modal_h * 0.10)
+    btn_w_val = (modal_w - 60) // 2
+    rematch_btn = pygame.Rect(rect.left + 25, rect.bottom - btn_h_val - 20, btn_w_val, btn_h_val)
+    pygame.draw.rect(screen, (0, 210, 255), rematch_btn, border_radius=10)
     rt = get_scaled_font(rematch_btn.height * 0.45, bold=True).render("Rematch", True, (0, 0, 0))
     screen.blit(rt, (rematch_btn.centerx - rt.get_width()//2, rematch_btn.centery - rt.get_height()//2))
 
-    menu_btn = pygame.Rect(rect.right - 25 - rematch_btn.width, rect.bottom - int(modal_h * 0.16), rematch_btn.width, rematch_btn.height)
-    pygame.draw.rect(screen, theme["panel_border"], menu_btn, border_radius=8)
-    mt = get_scaled_font(menu_btn.height * 0.45, bold=True).render("Main Menu", True, theme["text_main"])
+    menu_btn = pygame.Rect(rect.right - 25 - btn_w_val, rect.bottom - btn_h_val - 20, btn_w_val, btn_h_val)
+    pygame.draw.rect(screen, theme["panel_border"], menu_btn, border_radius=10)
+    mt = get_scaled_font(menu_btn.height * 0.45, bold=True).render("Main Menu", True, (255, 255, 255))
     screen.blit(mt, (menu_btn.centerx - mt.get_width()//2, menu_btn.centery - mt.get_height()//2))
+
+import random
 
 # ================= MASTER GAME LOOP =================
 last_timer_update = time.time()
@@ -879,7 +934,7 @@ while True:
     if current_state == "PLAYING" and not is_paused and confirm_modal is None and not show_about:
         if board.vs_bot and board.current_turn == 1:
             if bot_action_scheduled == 0.0:
-                bot_action_scheduled = current_time + 0.6
+                bot_action_scheduled = current_time + 1.5
             elif current_time >= bot_action_scheduled:
                 board.play_smart_bot_move()
                 bot_action_scheduled = 0.0
@@ -977,8 +1032,10 @@ while True:
                         board = GameBoard(grid_size, 2 if vs_bot_mode else num_players, player_color_indices, vs_bot=vs_bot_mode)
                         time_remaining = TURN_DURATION
                         last_timer_update = time.time()
+                        celebration_particles = []
                     elif confirm_modal == 'MENU':
                         current_state = "MAIN_MENU"
+                        player_names = ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5"]
                     confirm_modal = None
                     is_paused = False
                 elif no_btn.collidepoint(mx, my):
@@ -1088,6 +1145,7 @@ while True:
                     board = GameBoard(grid_size, 2, player_color_indices, vs_bot=True)
                     time_remaining = TURN_DURATION
                     last_timer_update = time.time()
+                    celebration_particles = []
                     is_paused = False
                     current_state = "PLAYING"
                 elif back_m_btn.collidepoint(mx, my):
@@ -1164,9 +1222,11 @@ while True:
                     board = GameBoard(grid_size, num_players, player_color_indices, vs_bot=False)
                     time_remaining = TURN_DURATION
                     last_timer_update = time.time()
+                    celebration_particles = []
                     is_paused = False
                     current_state = "PLAYING"
                 elif back_m_btn.collidepoint(mx, my):
+                    player_names = ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5"]
                     current_state = "MAIN_MENU"
 
             elif event.type == pygame.KEYDOWN and active_input_idx is not None:
@@ -1221,17 +1281,21 @@ while True:
 
         elif current_state == "GAMEOVER":
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                modal_w, modal_h = min(int(cur_w * 0.8), 500), min(int(cur_h * 0.78), 460)
+                modal_w, modal_h = min(int(cur_w * 0.82), 520), min(int(cur_h * 0.80), 480)
                 rect = pygame.Rect((cur_w - modal_w)//2, (cur_h - modal_h)//2, modal_w, modal_h)
-                rematch_btn = pygame.Rect(rect.left + 25, rect.bottom - int(modal_h * 0.16), (modal_w - 60)//2, int(modal_h * 0.10))
-                menu_btn = pygame.Rect(rect.right - 25 - rematch_btn.width, rect.bottom - int(modal_h * 0.16), rematch_btn.width, rematch_btn.height)
+                btn_h_val = int(modal_h * 0.10)
+                btn_w_val = (modal_w - 60) // 2
+                rematch_btn = pygame.Rect(rect.left + 25, rect.bottom - btn_h_val - 20, btn_w_val, btn_h_val)
+                menu_btn = pygame.Rect(rect.right - 25 - btn_w_val, rect.bottom - btn_h_val - 20, btn_w_val, btn_h_val)
 
                 if rematch_btn.collidepoint(mx, my):
                     board = GameBoard(grid_size, 2 if vs_bot_mode else num_players, player_color_indices, vs_bot=vs_bot_mode)
                     time_remaining = TURN_DURATION
                     last_timer_update = time.time()
+                    celebration_particles = []
                     current_state = "PLAYING"
                 elif menu_btn.collidepoint(mx, my):
+                    player_names = ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5"]
                     current_state = "MAIN_MENU"
 
     # Screen Routing

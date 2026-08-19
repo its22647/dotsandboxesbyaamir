@@ -162,6 +162,7 @@ class GameBoard:
         if not moves:
             return False
 
+        # AI strictly checks if any move can capture boxes without needlessly giving away chains
         winning_moves = [m for m in moves if self._move_creates_box(m) > 0]
         if winning_moves:
             chosen = random.choice(winning_moves)
